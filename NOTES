@@ -1,0 +1,210 @@
+TODO
+
+stateManager - deprecate methods that do lookups with account obj
+
+
+-------------------- old -------------
+
+NOTES
+
+- vm hands Account the state trie to pull out data
+
+- state trie has
+  - get (normal storage)
+  - getRaw (storing code only?)
+
+- solution:
+  - layer between stateTrie and vm with semantic lookups
+    - getAccount
+    - getAddress
+    - name: stateProvider/blockchainProvider ?
+    - tricky b/c cloning/caching
+
+
+- locations where stateTrie is used: 
+  - Account
+
+  - VM
+    - storageTrie
+    - storageTries[]
+    - results.vm.storageTries?
+    - ops
+      - SLOAD get
+      - SSTORE put + get (fee calc)
+
+
+stateTrie - need to update the account stateRoot from trie
+
+cache?
+  - var fromAccount = self.cache.get(opts.tx.from)
+
+opts
+  - depth
+  - gasPrice
+  - gasLimit
+  - data
+  - code
+  - address
+  - account
+  - block
+  - caller
+  - origin
+  - value
+  - suicides
+
+VM
+  - memory
+  - stack
+  - gas
+StateProvider
+  - contract storage
+  - checkpointing (mostly passthrough)
+Cache+StateTrie+Account
+
+
+THE PROCESS
+
+eth_call
+  new VM
+  new TX
+  checkpoint
+  runTx
+  revert
+runTx
+  // flushing cache and commit trees is
+  // unnecesary if we are just going to 
+  // revert after runTx. only need the marked ones.
+  populateCache <--- ? materializes accounts
+  beforeHook
+  validate: balance + nonce <--- ?
+  runCall <--- pulls account out of cache
+  stateUpdates: transfer gas fee + remove suicided contracts
+  afterHook
+  commitTrees
+  flushCache
+runCall
+  valueTransfer: tx.value -> tx.to (requires cache warmed)
+  loadCode: if opts.to is contract, populates opts.code
+  runCode
+    checkpoint
+    opts.compiled ? self.runJIT : self.runCode
+    commit
+  saveCode: stores any created contracts
+  parseResults
+runCode
+  parseInput + defaults + storageTree
+  preprocessValidJumps
+  iterate vm
+    until stopped/end/error/out_of_gas/invalid opcode
+    before hook
+    run opcode
+  parse results/errors
+
+ops that trigger runCall:
+  CREATE
+  CALL
+  CALLCODE
+
+REFACTOR
+
+- header comments - what does the file do
+- public method comments - how to use
+- more semantic code (composability, hoisting)
+- StateProvider
+- simplify cache stack + lookups
+- automated jsdocs
+- replace text-based errors
+
+// VM STATE
+returnValue
+stopped
+vmError
+suicideTo
+pc
+op
+opcode
+gasLeft
+memory
+wordsInMem
+stack
+depth
+logs
+validJumps
+gasRefund
+
+opts
+  address
+  account
+  origin
+  caller
+  value
+  data
+  code
+  gasPrice
+  block
+  suicides
+self
+  cache
+    getOrLoad(address, function (err, account) {
+    getOrLoad(to, function (err, account) {
+    getOrLoad(suicideTo, function(err, toAccount){
+    get(opts.address)
+    put(suicideTo, toAccount)
+    put(opts.address, opts.account)
+  trie
+  blockchain
+  _precomiled
+
+fees
+  expByteGas
+  sha3WordGas
+  copyGas
+  sstoreResetGas
+  sstoreRefundGas
+  sstoreSetGas
+  logTopicGas
+  logDataGas
+  callValueTransferGas
+  callStipend
+  callNewAccountGas
+  suicideRefundGas
+
+logTable
+memLoad
+memStore
+
+BN
+utils
+ERROR
+
+//
+// BLOCKCHAIN STATE LOOKUPS
+//
+
+// block number -> hash (in BLOCKHASH)
+self.blockchain.getBlockByNumber(number, function (err, block) {
+  if (err) return done(err)
+  stack.push(block.hash())
+  done()
+})
+
+// code lookup
+account.getCode(self.trie, function (err2, code, compiled) {...})
+
+// cache read writes
+self.cache.getOrLoad(address, function (err, account) {
+self.cache.getOrLoad(to, function (err, account) {
+self.cache.getOrLoad(suicideTo, function(err, toAccount){
+self.cache.get(opts.address)
+self.cache.put(suicideTo, toAccount)
+self.cache.put(opts.address, opts.account)
+
+// update storageTrie
+opts.account = self.cache.get(opts.address)
+storageTrie.root = opts.account.stateRoot
+
+self
+  cache
+  trie
+  blockchain
+  _precomiled
