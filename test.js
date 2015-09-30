@@ -37,18 +37,28 @@ function runStateTest(testName, cb){
 }
 
 function runTest(t, testData, cb){
+  // console.log('------------------------------------------------------------')
+  // console.log(testData)
+  // console.log('------------------------------------------------------------')
   // setup server
   server.setData(testData)
+
   // setup vm
   var tx = testUtil.makeTx(testData.transaction)
   var block = testUtil.makeBlockFromEnv(testData.env)
   vm.stateManager.checkpoint()
-  // run test
-  vm.runTx({
-    tx: tx,
-    block: block,
-    skipNonce: true,
-  }, function(err, results) {
+
+  if (tx.validate()) {
+    // run test
+    vm.runTx({
+      tx: tx,
+      block: block,
+    }, finishTest)
+  } else {
+    finishTest()
+  }
+
+  function finishTest(err, results) {
     // console.log('------------------------------------------------------------')
     // console.log(err || results)
 
@@ -57,7 +67,7 @@ function runTest(t, testData, cb){
       t.error(err, 'post-state verification did not error')
       vm.stateManager.revert(cb)
     })
-  })
+  }
 
 }
 
@@ -74,9 +84,9 @@ function verifyPostState(t, vm, testData, cb){
       if (err) return cb(err)
       // verify balance + nonce
       var accountBalance = account.balance.toString('hex') || '00'
-      t.equal(accountBalance, ethUtil.stripHexPrefix(accountData.balance), 'correct balance')
+      t.equal(accountBalance, ethUtil.stripHexPrefix(accountData.balance), 'correct balance for '+addressHex)
       var accountNonce = account.nonce.toString('hex') || '00'
-      t.equal(accountNonce, ethUtil.stripHexPrefix(accountData.nonce), 'correct nonce')
+      t.equal(accountNonce, ethUtil.stripHexPrefix(accountData.nonce), 'correct nonce for '+addressHex)
       // verify storage
       var storageData = accountData.storage
       async.eachSeries(Object.keys(storageData), verifyStorage.bind(null, address), cb)

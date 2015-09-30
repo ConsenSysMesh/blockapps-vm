@@ -118,10 +118,10 @@ proto._lookupAccount = function(address, cb) {
 proto.commitContracts = function(cb) {
   var self = this
   for (var addressHex in self._storageTries) {
-    var trie = self._storageTries[addressHex]
+    var storage = self._storageTries[addressHex]
     // delete self._storageTries[addressHex]
     try {
-      trie.commit()
+      storage.commit()
     } catch (e) {
       console.log('storageTrie - unblanced checkpoints')
     }
