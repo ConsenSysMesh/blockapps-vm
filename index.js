@@ -9,7 +9,7 @@ function buildVM(){
   // create a new VM instance
   var trie = new Trie()
   var vm = new VM(trie)
-  vm.stateManager = BlockAppsStateManager(vm.stateManager, {
+  vm.stateManager = new BlockAppsStateManager({
     url: 'http://localhost:3000/',
   })
 

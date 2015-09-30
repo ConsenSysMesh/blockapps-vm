@@ -1,44 +1,38 @@
 var request = require('request')
-var StateManager = require('ethereumjs-vm/lib/stateManager.js')
+var BaseStateManager = require('ethereumjs-vm/lib/stateManager.js')
 var CheckpointedStore = require('./checkpointed-store.js')
 var async = require('async')
+var util = require('util')
 var ethUtil = require('ethereumjs-util')
 var BN = ethUtil.BN
 var Account = require('ethereumjs-account')
+var apiBase = 'http://api.blockapps.net/eth/v1.0/'
 
 module.exports = BlockAppsStateManager
 
-var _storages = {}
-var _code = {}
-var apiBase = 'http://api.blockapps.net/eth/v1.0/'
-function BlockAppsStateManager(baseStateManager, opts){
+
+util.inherits(BlockAppsStateManager, BaseStateManager)
+var proto = BlockAppsStateManager.prototype
+
+function BlockAppsStateManager(opts){
+  var self = this
+
+  BaseStateManager.call(self, opts)
+  
   opts = opts || {}
-  if (opts.url) apiBase = opts.url
-
-  baseStateManager._lookupAccount = _lookupAccount.bind(baseStateManager)
-  
-  baseStateManager.getContractStorage = getContractStorage.bind(baseStateManager)
-  baseStateManager.putContractStorage = putContractStorage.bind(baseStateManager)
-  
-  baseStateManager.commitContracts = commitContracts.bind(baseStateManager)
-  baseStateManager.revertContracts = revertContracts.bind(baseStateManager)
-  
-  baseStateManager.getContractCode = getContractCode.bind(baseStateManager)
-
-  // baseStateManager.history.on('commit', _commitContractStorage)
-  // baseStateManager.history.on('revert', _revertContractStorage)
-
-  return baseStateManager
+  self.apiBase = opts.url || apiBase
+  self._contractCode = {}
 }
 
 //
-// blockapps
+// blockapps-specific methods
 //
 
 // account
 
-function loadAccountForAddress(addressHex, cb){
-  var targetUrl = apiBase+'account?address='+addressHex.toString('hex')
+proto._loadAccountForAddress = function(addressHex, cb){
+  var self = this
+  var targetUrl = self.apiBase+'account?address='+addressHex.toString('hex')
   console.log(targetUrl)
   request(targetUrl, function(err, res, body) {
     if (err) return cb(err)
@@ -61,30 +55,26 @@ function loadAccountForAddress(addressHex, cb){
       var code = new Buffer(data.code, 'hex')
       var codeHash = ethUtil.sha3(code)
       account.codeHash = codeHash
-      _code[codeHash] = code
+      self._contractCode[codeHash] = code
     }
     cb(null, account, exists)
   })
 }
 
 
-function getAccountForAddress(addressHex, cb){
-  // var account = _accounts[addressHex]
-  // if (account) {
-  //   cb(null, account)
-  // } else {
-    loadAccountForAddress(addressHex, function(err, account){
-      if (err) return cb(err)
-      // _accounts[addressHex] = account
-      cb(null, account)
-    })
-  // }
+proto._getAccountForAddress = function(addressHex, cb){
+  var self = this
+  self._loadAccountForAddress(addressHex, function(err, account){
+    if (err) return cb(err)
+    cb(null, account)
+  })
 }
 
 // storage
 
-function loadStorageForAddress(addressHex, cb){
-  var targetUrl = apiBase+'storage?address='+addressHex.toString('hex')
+proto._loadStorageForAddress = function(addressHex, cb){
+  var self = this
+  var targetUrl = self.apiBase+'storage?address='+addressHex.toString('hex')
   console.log(targetUrl)
   request(targetUrl, function(err, res, body) {
     if (err) return cb(err)
@@ -98,66 +88,38 @@ function loadStorageForAddress(addressHex, cb){
   })
 }
 
-function getStorageForAddress(addressHex, cb){
-  var storage = _storages[addressHex]
+proto._getStorageForAddress = function(addressHex, cb){
+  var self = this
+  var storage = self._storageTries[addressHex]
   if (storage) {
     cb(null, storage)
   } else {
-    loadStorageForAddress(addressHex, function(err, storage){
+    self._loadStorageForAddress(addressHex, function(err, storage){
       if (err) return cb(err)
-      console.log('storage for', addressHex)
-      console.log(storage)
+      // console.log('storage for', addressHex)
+      // console.log(storage)
       var fancyStore = new CheckpointedStore(storage)
-      _storages[addressHex] = fancyStore
+      self._storageTries[addressHex] = fancyStore
       cb(null, fancyStore)
     })
   }
 }
 
-function _revertContractStorage(){
-  console.log('BASM - revert')
-  for (var addressHex in _storages) {
-    var storage = _storages[addressHex]
-    if (storage.isCheckpointed()) {
-      console.log('BASM - revert -', addressHex)
-      storage.revert()
-    }
-  }
-}
-function _commitContractStorage(){
-  console.log('BASM - commit')
-  for (var addressHex in _storages) {
-    var storage = _storages[addressHex]
-    if (storage.isCheckpointed()) {
-      console.log('BASM - commit -', addressHex)
-      storage.commit()
-    }
-  }
-}
-
-// code
-
-function getCodeForAddress(addressHex, cb){
-  getAccountForAddress(addressHex, function(err, account){
-    if (err) return cb(err)
-    var code = _code[account.codeHash]
-    cb(null, code)
-  })
-}
-
 //
-// StateManager
+// StateManager overrides
 //
 
-function _lookupAccount(address, cb) {
+proto._lookupAccount = function(address, cb) {
+  var self = this
   var addressHex = address.toString('hex')
-  getAccountForAddress(addressHex, cb)
+  self._getAccountForAddress(addressHex, cb)
 }
 
-function getContractStorage(address, key, cb){
+proto.getContractStorage = function(address, key, cb){
+  var self = this
   var addressHex = address.toString('hex')
   var keyHex = key.toString('hex')
-  getStorageForAddress(addressHex, function(err, storage){
+  self._getStorageForAddress(addressHex, function(err, storage){
     if (err) return cb(err)
     var rawValue = storage.get(keyHex)
     var value = rawValue ? new Buffer(rawValue, 'hex') : null
@@ -165,30 +127,31 @@ function getContractStorage(address, key, cb){
   })
 }
 
-function commitContracts(cb) {
+proto.commitContracts = function(cb) {
   var self = this
-  async.each(Object.keys(_storages), function (addressHex, cb) {
-    var trie = _storages[addressHex]
-    delete _storages[addressHex]
+  for (var addressHex in self._storageTries) {
+    var trie = self._storageTries[addressHex]
+    delete self._storageTries[addressHex]
     try {
       trie.commit()
     } catch (e) {
       console.log('unblanced checkpoints')
     }
-    cb()
-  }, cb)
+  }
+  cb()
 }
 
-function revertContracts() {
+proto.revertContracts = function() {
   var self = this
-  _storages = {}
+  self._storageTries = {}
 }
 
-function putContractStorage(address, key, value, cb){
+proto.putContractStorage = function(address, key, value, cb){
+  var self = this
   var addressHex = address.toString('hex')
   var keyHex = key.toString('hex')
   var valueHex = value.toString('hex')
-  getStorageForAddress(addressHex, function(err, storage){
+  self._getStorageForAddress(addressHex, function(err, storage){
     if (err) return cb(err)
     if (valueHex) {
       storage.put(keyHex, valueHex)
@@ -199,12 +162,12 @@ function putContractStorage(address, key, value, cb){
   })
 }
 
-function getContractCode(address, cb) {
+proto.getContractCode = function(address, cb) {
   var self = this
   var addressHex = address.toString('hex')
   self.getAccount(address, function(err, account){
     if (err) return cb(err)
-    var code = _code[account.codeHash]
+    var code = self._contractCode[account.codeHash]
     cb(null, code)
   })
 }
