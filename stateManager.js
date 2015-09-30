@@ -33,7 +33,7 @@ function BlockAppsStateManager(opts){
 proto._loadAccountForAddress = function(addressHex, cb){
   var self = this
   var targetUrl = self.apiBase+'account?address='+addressHex.toString('hex')
-  console.log(targetUrl)
+  // console.log(targetUrl)
   request(targetUrl, function(err, res, body) {
     if (err) return cb(err)
     // parse response into raw account
@@ -75,7 +75,7 @@ proto._getAccountForAddress = function(addressHex, cb){
 proto._loadStorageForAddress = function(addressHex, cb){
   var self = this
   var targetUrl = self.apiBase+'storage?address='+addressHex.toString('hex')
-  console.log(targetUrl)
+  // console.log(targetUrl)
   request(targetUrl, function(err, res, body) {
     if (err) return cb(err)
     // parse response into storage obj
@@ -115,27 +115,15 @@ proto._lookupAccount = function(address, cb) {
   self._getAccountForAddress(addressHex, cb)
 }
 
-proto.getContractStorage = function(address, key, cb){
-  var self = this
-  var addressHex = address.toString('hex')
-  var keyHex = key.toString('hex')
-  self._getStorageForAddress(addressHex, function(err, storage){
-    if (err) return cb(err)
-    var rawValue = storage.get(keyHex)
-    var value = rawValue ? new Buffer(rawValue, 'hex') : null
-    cb(null, value)
-  })
-}
-
 proto.commitContracts = function(cb) {
   var self = this
   for (var addressHex in self._storageTries) {
     var trie = self._storageTries[addressHex]
-    delete self._storageTries[addressHex]
+    // delete self._storageTries[addressHex]
     try {
       trie.commit()
     } catch (e) {
-      console.log('unblanced checkpoints')
+      console.log('storageTrie - unblanced checkpoints')
     }
   }
   cb()
@@ -146,11 +134,27 @@ proto.revertContracts = function() {
   self._storageTries = {}
 }
 
+proto.getContractStorage = function(address, key, cb){
+  var self = this
+  var addressHex = address.toString('hex')
+  var keyHex = key.toString('hex')
+  self._getStorageForAddress(addressHex, function(err, storage){
+    if (err) return cb(err)
+    var rawValue = storage.get(keyHex)
+    // console.log('RETURNED STORAGE:', storage)
+    // console.log('RETURNED rawValue:', rawValue)
+    // console.log('STORAGE TRIES:', Object.keys(self._storageTries))
+    var value = rawValue ? new Buffer(rawValue, 'hex') : null
+    cb(null, value)
+  })
+}
+
 proto.putContractStorage = function(address, key, value, cb){
   var self = this
   var addressHex = address.toString('hex')
   var keyHex = key.toString('hex')
   var valueHex = value.toString('hex')
+  // console.log('storage put for '+addressHex+' at '+keyHex+' = '+valueHex)
   self._getStorageForAddress(addressHex, function(err, storage){
     if (err) return cb(err)
     if (valueHex) {
@@ -158,6 +162,11 @@ proto.putContractStorage = function(address, key, value, cb){
     } else {
       storage.del(keyHex)
     }
+    var rawValue = storage.get(keyHex)
+    // console.log('SET valueHex:', valueHex)
+    // console.log('RETURNED rawValue:', rawValue)
+    // console.log('STORAGE TRIES:', Object.keys(self._storageTries))
+    
     cb()
   })
 }

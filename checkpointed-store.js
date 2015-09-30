@@ -36,11 +36,13 @@ CheckpointedStore.prototype.isCheckpointed = function() {
 }
 
 CheckpointedStore.prototype.checkpoint = function() {
+  console.log('checkpointed store - checkpoint')
   this._checkpoints.push(this._tree)
 }
 
 CheckpointedStore.prototype.revert = function() {
-  if (this._checkpoints.length > 0) {
+  console.log('checkpointed store - revert')
+  if (this.isCheckpointed()) {
     this._tree = this._checkpoints.pop(this._tree)
   } else {
     throw new Error('Checkpoint store reverted without a checkpoint.')
@@ -48,7 +50,8 @@ CheckpointedStore.prototype.revert = function() {
 }
 
 CheckpointedStore.prototype.commit = function() {
-  if (this._checkpoints.length > 0) {
+  console.log('checkpointed store - commit')
+  if (this.isCheckpointed()) {
     this._checkpoints.pop()
   } else {
     throw new Error('Checkpoint store committed without a checkpoint.')
