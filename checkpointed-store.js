@@ -31,6 +31,10 @@ CheckpointedStore.prototype.get = function(key) {
   }
 }
 
+CheckpointedStore.prototype.isCheckpointed = function() {
+  return !!this._checkpoints.length
+}
+
 CheckpointedStore.prototype.checkpoint = function() {
   this._checkpoints.push(this._tree)
 }

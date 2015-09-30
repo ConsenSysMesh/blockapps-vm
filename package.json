@@ -19,6 +19,7 @@
     "request": "^2.62.0"
   },
   "devDependencies": {
-    "express": "^4.13.3"
+    "express": "^4.13.3",
+    "tape": "^4.2.0"
   }
 }

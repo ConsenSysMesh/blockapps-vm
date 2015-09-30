@@ -5,14 +5,14 @@ module.exports = buildApp
 
 
 function buildApp(initState){
-  console.log('initState::\n', initState)
+  // console.log('initState::\n', initState)
 
   var app = express()
 
   app.get('/storage', function(req, res){
     var address = req.query.address
     var account = initState.pre[address]
-    console.log('account::\n', account)
+    // console.log('account::\n', account)
     var data = []
     if (account) {
       data = Object.keys(account.storage).map(function(key){

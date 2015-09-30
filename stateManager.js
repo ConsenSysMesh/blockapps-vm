@@ -9,17 +9,24 @@ var Account = require('ethereumjs-account')
 module.exports = BlockAppsStateManager
 
 var _storages = {}
-var _accounts = {}
 var _code = {}
 var apiBase = 'http://api.blockapps.net/eth/v1.0/'
 function BlockAppsStateManager(baseStateManager, opts){
   opts = opts || {}
   if (opts.url) apiBase = opts.url
 
-  baseStateManager.warmCache = warmCache.bind(baseStateManager)
+  baseStateManager._lookupAccount = _lookupAccount.bind(baseStateManager)
+  
   baseStateManager.getContractStorage = getContractStorage.bind(baseStateManager)
   baseStateManager.putContractStorage = putContractStorage.bind(baseStateManager)
+  
+  baseStateManager.commitContracts = commitContracts.bind(baseStateManager)
+  baseStateManager.revertContracts = revertContracts.bind(baseStateManager)
+  
   baseStateManager.getContractCode = getContractCode.bind(baseStateManager)
+
+  // baseStateManager.history.on('commit', _commitContractStorage)
+  // baseStateManager.history.on('revert', _revertContractStorage)
 
   return baseStateManager
 }
@@ -44,8 +51,10 @@ function loadAccountForAddress(addressHex, cb){
       throw err
     }
     
+    var exists = false
     var account = new Account()
     if (data) {
+      exists = true
       account.balance = new BN(data.balance)
       account.stateRoot = new Buffer(data.contractRoot, 'hex')
       account.nonce = new Buffer(data.nonce, 'hex')
@@ -53,25 +62,23 @@ function loadAccountForAddress(addressHex, cb){
       var codeHash = ethUtil.sha3(code)
       account.codeHash = codeHash
       _code[codeHash] = code
-      console.log(account)
-      console.log(code)
     }
-    cb(null, account)
+    cb(null, account, exists)
   })
 }
 
 
 function getAccountForAddress(addressHex, cb){
-  var account = _accounts[addressHex]
-  if (account) {
-    cb(null, account)
-  } else {
+  // var account = _accounts[addressHex]
+  // if (account) {
+  //   cb(null, account)
+  // } else {
     loadAccountForAddress(addressHex, function(err, account){
       if (err) return cb(err)
-      _accounts[addressHex] = account
+      // _accounts[addressHex] = account
       cb(null, account)
     })
-  }
+  // }
 }
 
 // storage
@@ -87,7 +94,6 @@ function loadStorageForAddress(addressHex, cb){
     keyValues.forEach(function(keyValue){
       storage[keyValue.key] = keyValue.value
     })
-    console.log(storage)
     cb(null, storage)
   })
 }
@@ -99,10 +105,33 @@ function getStorageForAddress(addressHex, cb){
   } else {
     loadStorageForAddress(addressHex, function(err, storage){
       if (err) return cb(err)
+      console.log('storage for', addressHex)
+      console.log(storage)
       var fancyStore = new CheckpointedStore(storage)
       _storages[addressHex] = fancyStore
       cb(null, fancyStore)
     })
+  }
+}
+
+function _revertContractStorage(){
+  console.log('BASM - revert')
+  for (var addressHex in _storages) {
+    var storage = _storages[addressHex]
+    if (storage.isCheckpointed()) {
+      console.log('BASM - revert -', addressHex)
+      storage.revert()
+    }
+  }
+}
+function _commitContractStorage(){
+  console.log('BASM - commit')
+  for (var addressHex in _storages) {
+    var storage = _storages[addressHex]
+    if (storage.isCheckpointed()) {
+      console.log('BASM - commit -', addressHex)
+      storage.commit()
+    }
   }
 }
 
@@ -120,28 +149,10 @@ function getCodeForAddress(addressHex, cb){
 // StateManager
 //
 
-/**
- * @param {Set} address
- * @param {cb} function
- */
-function warmCache(addresses, cb) {
-  var self = this
-
-  // shim till async supports iterators
-  var accountArr = []
-  addresses.forEach(function (val) {
-    if (val) accountArr.push(val)
-  })
-
-  async.each(accountArr, function (addressHex, done) {
-    getAccountForAddress(addressHex, function(err, account){
-      if (err) return cb(err)
-      self.cache.put(new Buffer(addressHex, 'hex'), account, true)
-      done()
-    })
-  }, cb)
+function _lookupAccount(address, cb) {
+  var addressHex = address.toString('hex')
+  getAccountForAddress(addressHex, cb)
 }
-
 
 function getContractStorage(address, key, cb){
   var addressHex = address.toString('hex')
@@ -154,19 +165,46 @@ function getContractStorage(address, key, cb){
   })
 }
 
+function commitContracts(cb) {
+  var self = this
+  async.each(Object.keys(_storages), function (addressHex, cb) {
+    var trie = _storages[addressHex]
+    delete _storages[addressHex]
+    try {
+      trie.commit()
+    } catch (e) {
+      console.log('unblanced checkpoints')
+    }
+    cb()
+  }, cb)
+}
+
+function revertContracts() {
+  var self = this
+  _storages = {}
+}
+
 function putContractStorage(address, key, value, cb){
   var addressHex = address.toString('hex')
   var keyHex = key.toString('hex')
   var valueHex = value.toString('hex')
   getStorageForAddress(addressHex, function(err, storage){
     if (err) return cb(err)
-    storage.put(keyHex, valueHex)
+    if (valueHex) {
+      storage.put(keyHex, valueHex)
+    } else {
+      storage.del(keyHex)
+    }
     cb()
   })
 }
 
-// problem -- signature needs to change to address not account
 function getContractCode(address, cb) {
+  var self = this
   var addressHex = address.toString('hex')
-  getCodeForAddress(addressHex, cb)
+  self.getAccount(address, function(err, account){
+    if (err) return cb(err)
+    var code = _code[account.codeHash]
+    cb(null, code)
+  })
 }
