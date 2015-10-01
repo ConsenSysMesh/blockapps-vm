@@ -8,7 +8,6 @@ var testUtil = require('ethereumjs-vm/tests/util.js')
 var ethUtil = require('ethereumjs-util')
 
 var server = new BlockappsTestServer()
-var vm = blockappsVm()
 
 // select tests
 var selectedTests = allTests
@@ -28,7 +27,10 @@ function runSelectedTests(){
 
 function runStateTest(testName, cb){
   var testData = selectedTests[testName]
+  console.log('------------------------ test start ------------------------------------')
   test(testName, function(t){
+  console.log('------------------------ test end ------------------------------------')
+
     runTest(t, testData, function(err){
       t.end(err)
       cb()
@@ -37,13 +39,14 @@ function runStateTest(testName, cb){
 }
 
 function runTest(t, testData, cb){
-  // console.log('------------------------------------------------------------')
-  // console.log(testData)
-  // console.log('------------------------------------------------------------')
+  console.log('------------------------------------------------------------')
+  console.log(JSON.stringify(testData, null, 2))
+  console.log('------------------------------------------------------------')
   // setup server
   server.setData(testData)
 
   // setup vm
+  var vm = blockappsVm()
   var tx = testUtil.makeTx(testData.transaction)
   var block = testUtil.makeBlockFromEnv(testData.env)
   vm.stateManager.checkpoint()
@@ -54,13 +57,16 @@ function runTest(t, testData, cb){
       tx: tx,
       block: block,
     }, finishTest)
+    // vm.createTraceStream().on('data', console.log.bind(console))
   } else {
     finishTest()
   }
 
   function finishTest(err, results) {
-    // console.log('------------------------------------------------------------')
-    // console.log(err || results)
+    console.log('------------------------ results ------------------------------------')
+    if (err) console.error(err.stack)
+    if (results) console.log(results)
+    console.log('------------------------------------------------------------')
 
     // t.error(err, 'runTx did not error')
     verifyPostState(t, vm, testData, function(err){

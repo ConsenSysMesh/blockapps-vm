@@ -2,62 +2,88 @@ const Tree = require('functional-red-black-tree')
 
 module.exports = CheckpointedStore
 
+
 function CheckpointedStore(initState) {
-  this._tree = Tree()
-  this._checkpoints = []
+  var self = this
+  self._tree = Tree()
+  self._checkpoints = []
+
+  Object.defineProperty(self, 'isCheckpoint', {
+    get: function () {
+      return !!self._checkpoints.length
+    }
+  })
+
   // intialize state
   initState = initState || {}
-  for (var key in initState) {
-    var val = initState[key]
-    this.put(key, val, false)
+  for (var keyHex in initState) {
+    var val = initState[keyHex]
+    self.put(new Buffer(keyHex, 'hex'), val, function(){})
   }
 }
 
-CheckpointedStore.prototype.put = function(key, value) {
-  var iterator = this._tree.find(key)
+CheckpointedStore.prototype.put = function(key, value, cb) {
+  var self = this
+  var keyHex = key.toString('hex')
+  var valueHex = value.toString('hex')
+  var iterator = self._tree.find(keyHex)
+  console.log('CheckpointedStore put', keyHex, '->', valueHex)
   if (iterator.node) {
-    this._tree = iterator.update(value)
+    self._tree = iterator.update(valueHex)
   } else {
-    this._tree = this._tree.insert(key, value)
+    self._tree = self._tree.insert(keyHex, valueHex)
   }
+  cb()
 }
 
-CheckpointedStore.prototype.get = function(key) {
-  var iterator = this._tree.find(key)
+CheckpointedStore.prototype.get = function(key, cb) {
+  var self = this
+  var keyHex = key.toString('hex')
+  var iterator = self._tree.find(keyHex)
   if (iterator.node) {
-    return iterator.value
+    console.log('CheckpointedStore get', keyHex, '->', iterator.value)
+    cb(null, new Buffer(iterator.value, 'hex'))
   } else {
-    return undefined
+    console.log('CheckpointedStore get', keyHex, '->', undefined)
+    cb(null, undefined)
   }
 }
 
-CheckpointedStore.prototype.isCheckpointed = function() {
-  return !!this._checkpoints.length
+CheckpointedStore.prototype.del = function(key, cb) {
+  var self = this
+  var keyHex = key.toString('hex')
+  console.log('CheckpointedStore del')
+  self._tree = self._tree.remove(keyHex)
+  cb()
 }
 
 CheckpointedStore.prototype.checkpoint = function() {
+  var self = this
   console.log('checkpointed store - checkpoint')
-  this._checkpoints.push(this._tree)
+  self._checkpoints.push(self._tree)
+
 }
 
-CheckpointedStore.prototype.revert = function() {
+CheckpointedStore.prototype.revert = function(cb) {
+  var self = this
   console.log('checkpointed store - revert')
-  if (this.isCheckpointed()) {
-    this._tree = this._checkpoints.pop(this._tree)
+  if (self.isCheckpoint) {
+    self._tree = self._checkpoints.pop(self._tree)
+    if (cb) cb()
   } else {
-    throw new Error('Checkpoint store reverted without a checkpoint.')
+    var err = new Error('Checkpoint store reverted without a checkpoint.')
+    cb(err)
   }
 }
 
-CheckpointedStore.prototype.commit = function() {
+CheckpointedStore.prototype.commit = function(cb) {
+  var self = this
   console.log('checkpointed store - commit')
-  if (this.isCheckpointed()) {
-    this._checkpoints.pop()
+  if (self.isCheckpoint) {
+    self._checkpoints.pop()
+    if (cb) cb()
   } else {
-    throw new Error('Checkpoint store committed without a checkpoint.')
+    var err = new Error('Checkpoint store committed without a checkpoint.')
+    cb(err)
   }
-}
-
-CheckpointedStore.prototype.del = function(key) {
-  this._tree = this._tree.remove(key)
 }

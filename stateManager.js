@@ -22,18 +22,18 @@ function BlockAppsStateManager(opts){
   opts = opts || {}
   self.apiBase = opts.url || apiBase
   self._contractCode = {}
+  self._retrievedStorage = {}
 }
 
 //
-// blockapps-specific methods
+// StateManager overrides
 //
 
-// account
-
-proto._loadAccountForAddress = function(addressHex, cb){
+proto._lookupAccount = function(address, cb) {
   var self = this
+  var addressHex = address.toString('hex')
   var targetUrl = self.apiBase+'account?address='+addressHex.toString('hex')
-  // console.log(targetUrl)
+  console.log(targetUrl)
   request(targetUrl, function(err, res, body) {
     if (err) return cb(err)
     // parse response into raw account
@@ -51,7 +51,7 @@ proto._loadAccountForAddress = function(addressHex, cb){
       exists = true
       account.balance = new BN(data.balance)
       account.stateRoot = new Buffer(data.contractRoot, 'hex')
-      account.nonce = new Buffer(data.nonce, 'hex')
+      account.nonce = ethUtil.toBuffer(data.nonce)
       var code = new Buffer(data.code, 'hex')
       var codeHash = ethUtil.sha3(code)
       account.codeHash = codeHash
@@ -61,21 +61,20 @@ proto._loadAccountForAddress = function(addressHex, cb){
   })
 }
 
-
-proto._getAccountForAddress = function(addressHex, cb){
+// performs a network lookup
+proto._lookupStorageTrie = function(address, cb){
   var self = this
-  self._loadAccountForAddress(addressHex, function(err, account){
-    if (err) return cb(err)
-    cb(null, account)
-  })
-}
-
-// storage
-
-proto._loadStorageForAddress = function(addressHex, cb){
-  var self = this
+  var addressHex = address.toString('hex')
+  // from network cache
+  var storage = self._retrievedStorage[addressHex]
+  if (storage) {
+    var storageTrie = fakeMerkleTreeForStorage(storage)
+    cb(null, storageTrie)
+    return
+  }
+  // from network db
   var targetUrl = self.apiBase+'storage?address='+addressHex.toString('hex')
-  // console.log(targetUrl)
+  console.log(targetUrl)
   request(targetUrl, function(err, res, body) {
     if (err) return cb(err)
     // parse response into storage obj
@@ -84,90 +83,11 @@ proto._loadStorageForAddress = function(addressHex, cb){
     keyValues.forEach(function(keyValue){
       storage[keyValue.key] = keyValue.value
     })
-    cb(null, storage)
-  })
-}
-
-proto._getStorageForAddress = function(addressHex, cb){
-  var self = this
-  var storage = self._storageTries[addressHex]
-  if (storage) {
-    cb(null, storage)
-  } else {
-    self._loadStorageForAddress(addressHex, function(err, storage){
-      if (err) return cb(err)
-      // console.log('storage for', addressHex)
-      // console.log(storage)
-      var fancyStore = new CheckpointedStore(storage)
-      self._storageTries[addressHex] = fancyStore
-      cb(null, fancyStore)
-    })
-  }
-}
-
-//
-// StateManager overrides
-//
-
-proto._lookupAccount = function(address, cb) {
-  var self = this
-  var addressHex = address.toString('hex')
-  self._getAccountForAddress(addressHex, cb)
-}
-
-proto.commitContracts = function(cb) {
-  var self = this
-  for (var addressHex in self._storageTries) {
-    var storage = self._storageTries[addressHex]
-    // delete self._storageTries[addressHex]
-    try {
-      storage.commit()
-    } catch (e) {
-      console.log('storageTrie - unblanced checkpoints')
-    }
-  }
-  cb()
-}
-
-proto.revertContracts = function() {
-  var self = this
-  self._storageTries = {}
-}
-
-proto.getContractStorage = function(address, key, cb){
-  var self = this
-  var addressHex = address.toString('hex')
-  var keyHex = key.toString('hex')
-  self._getStorageForAddress(addressHex, function(err, storage){
-    if (err) return cb(err)
-    var rawValue = storage.get(keyHex)
-    // console.log('RETURNED STORAGE:', storage)
-    // console.log('RETURNED rawValue:', rawValue)
-    // console.log('STORAGE TRIES:', Object.keys(self._storageTries))
-    var value = rawValue ? new Buffer(rawValue, 'hex') : null
-    cb(null, value)
-  })
-}
-
-proto.putContractStorage = function(address, key, value, cb){
-  var self = this
-  var addressHex = address.toString('hex')
-  var keyHex = key.toString('hex')
-  var valueHex = value.toString('hex')
-  // console.log('storage put for '+addressHex+' at '+keyHex+' = '+valueHex)
-  self._getStorageForAddress(addressHex, function(err, storage){
-    if (err) return cb(err)
-    if (valueHex) {
-      storage.put(keyHex, valueHex)
-    } else {
-      storage.del(keyHex)
-    }
-    var rawValue = storage.get(keyHex)
-    // console.log('SET valueHex:', valueHex)
-    // console.log('RETURNED rawValue:', rawValue)
-    // console.log('STORAGE TRIES:', Object.keys(self._storageTries))
-    
-    cb()
+    // cache network results
+    self._retrievedStorage[addressHex] = storage
+    // create storage tree
+    var storageTrie = fakeMerkleTreeForStorage(storage)
+    cb(null, storageTrie)
   })
 }
 
@@ -179,4 +99,38 @@ proto.getContractCode = function(address, cb) {
     var code = self._contractCode[account.codeHash]
     cb(null, code)
   })
+}
+
+proto.putContractCode = function(address, account, code, cb) {
+  var self = this
+  var addressHex = address.toString('hex')
+  var codeHash = ethUtil.sha3(code)
+  // update code cache
+  self._contractCode[codeHash] = code
+  // update account
+  account.codeHash = codeHash
+  self._putAccount(address, account, cb)
+}
+
+proto.commitContracts = function (cb) {
+  var self = this
+  async.each(Object.keys(self._storageTries), function (address, cb) {
+    var trie = self._storageTries[address]
+    // delete self._storageTries[address]
+    if (trie.isCheckpoint) {
+      trie.commit(cb)
+    } else {
+      console.log('unblanced checkpoints')
+      cb()
+    }
+  }, cb)
+}
+
+// util
+
+function fakeMerkleTreeForStorage(storage) {
+  var storageTrie = new CheckpointedStore(storage)
+  // we're using it as a merkle-patricia-tree replacement so provide fake stateRoot
+  storageTrie.root = ethUtil.pad('0x', 32)
+  return storageTrie  
 }

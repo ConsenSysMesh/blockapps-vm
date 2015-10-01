@@ -58,10 +58,10 @@ proto._lookupAccount = function(address, cb){
   if (account) {
     data = [{
       contractRoot: '0000000000000000000000000000000000000000000000000000000000000000',
-      balance: ethUtil.bufferToInt(new Buffer(ethUtil.stripHexPrefix(account.balance), 'hex')).toString(),
+      balance: new BN(ethUtil.stripHexPrefix(account.balance), 16).toString(),
       address: address,
       code: ethUtil.stripHexPrefix(account.code),
-      nonce: Number(ethUtil.bufferToInt(new Buffer(ethUtil.stripHexPrefix(account.nonce), 'hex')).toString()),
+      nonce: parseInt(ethUtil.stripHexPrefix(account.nonce), 16),
     }] 
   }
 
