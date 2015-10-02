@@ -13,7 +13,7 @@
     "ethereumjs-account": "^1.0.3",
     "ethereumjs-tx": "^0.6.7",
     "ethereumjs-util": "^2.0.1",
-    "ethereumjs-vm": "git://github.com/ethereum/ethereumjs-vm.git#9a67531dfe45326db32b5e976b77d871b1e9989b",
+    "ethereumjs-vm": "git://github.com/ethereum/ethereumjs-vm.git#bec5d5da60865e7e2e4a1973108b9ac6779f6bca",
     "functional-red-black-tree": "^1.0.1",
     "merkle-patricia-tree": "^1.1.1",
     "request": "^2.62.0"
