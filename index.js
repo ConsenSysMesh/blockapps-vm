@@ -4,14 +4,12 @@ const BlockAppsStateManager = require('./stateManager.js')
 
 module.exports = buildVM
 
-function buildVM(){
+function buildVM(opts){
 
   // create a new VM instance
   var trie = new Trie()
   var vm = new VM(trie)
-  vm.stateManager = new BlockAppsStateManager({
-    url: 'http://localhost:3000/',
-  })
+  vm.stateManager = new BlockAppsStateManager(opts)
 
   var traceStream = vm.createTraceStream()
   traceStream.on('data', function(data){

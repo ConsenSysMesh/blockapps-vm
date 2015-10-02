@@ -46,7 +46,9 @@ function runTest(t, testData, cb){
   server.setData(testData)
 
   // setup vm
-  var vm = blockappsVm()
+  var vm = blockappsVm({
+    url: 'http://localhost:3000/',
+  })
   var tx = testUtil.makeTx(testData.transaction)
   var block = testUtil.makeBlockFromEnv(testData.env)
   vm.stateManager.checkpoint()

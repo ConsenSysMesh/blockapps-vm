@@ -5,6 +5,7 @@ var async = require('async')
 var util = require('util')
 var ethUtil = require('ethereumjs-util')
 var BN = ethUtil.BN
+var rlp = ethUtil.rlp
 var Account = require('ethereumjs-account')
 var apiBase = 'http://api.blockapps.net/eth/v1.0/'
 
@@ -22,6 +23,16 @@ function BlockAppsStateManager(opts){
   opts = opts || {}
   self.apiBase = opts.url || apiBase
   self._contractCode = {}
+  self._retrievedStorage = {}
+}
+
+//
+// BlockAppsStateManager specific code
+//
+
+// use this after a new block has been mined to enable new storage lookups
+proto.resetNetworkCache = function(){
+  var self = this
   self._retrievedStorage = {}
 }
 
@@ -81,8 +92,12 @@ proto._lookupStorageTrie = function(address, cb){
     var keyValues = JSON.parse(body)
     var storage = {}
     keyValues.forEach(function(keyValue){
-      storage[keyValue.key] = keyValue.value
+      storage[keyValue.key] = rlp.encode('0x'+keyValue.value).toString('hex')
     })
+    // console.log('retrieved storage:')
+    // console.log(keyValues)
+    // console.log('storage after parse + encode:')
+    // console.log(storage)
     // cache network results
     self._retrievedStorage[addressHex] = storage
     // create storage tree
