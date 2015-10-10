@@ -44,7 +44,6 @@ proto._lookupAccount = function(address, cb) {
   var self = this
   var addressHex = address.toString('hex')
   var targetUrl = self.apiBase+'account?address='+addressHex.toString('hex')
-  console.log(targetUrl)
   request(targetUrl, function(err, res, body) {
     if (err) return cb(err)
     // parse response into raw account
@@ -113,7 +112,6 @@ proto.getContractCode = function(address, cb) {
 
 proto.putContractCode = function(address, code, cb) {
   var self = this
-  console.log(code)
   var codeHash = ethUtil.sha3(code)
   // update code cache
   self._contractCode[codeHash] = code
@@ -133,7 +131,7 @@ proto.commitContracts = function (cb) {
     if (trie.isCheckpoint) {
       trie.commit(cb)
     } else {
-      console.log('unblanced checkpoints')
+      console.error('unblanced checkpoints')
       cb()
     }
   }, cb)
