@@ -11,17 +11,18 @@ function buildVM(opts){
   var vm = new VM(trie)
   vm.stateManager = new BlockAppsStateManager(opts)
 
-  var traceStream = vm.createTraceStream()
-  traceStream.on('data', function(data){
-    console.log(data.opcode.opcode)
-  })
-  injectBugs('root', vm.stateManager)
+  // debug utilities!
+  // var traceStream = vm.createTraceStream()
+  // traceStream.on('data', function(data){
+  //   console.log(data.opcode.opcode)
+  // })
+  // injectBugs('root', vm.stateManager)
 
   return vm
 
 }
 
-
+// adds function wrappers that logs the method being called
 function injectBugs(label, target){
   bug(label, target, 'getAccount')
   bug(label, target, 'putAccount')
