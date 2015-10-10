@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node test.js"
   },
   "author": "",
   "license": "ISC",
@@ -13,13 +13,13 @@
     "ethereumjs-account": "^1.0.3",
     "ethereumjs-tx": "^0.6.7",
     "ethereumjs-util": "^2.0.1",
-    "ethereumjs-vm": "git://github.com/ethereum/ethereumjs-vm.git#bec5d5da60865e7e2e4a1973108b9ac6779f6bca",
-    "functional-red-black-tree": "^1.0.1",
-    "merkle-patricia-tree": "^1.1.1",
+    "ethereumjs-vm": "^1.0.0",
+    "fake-merkle-patricia-tree": "^1.0.1",
     "request": "^2.62.0"
   },
   "devDependencies": {
     "express": "^4.13.3",
-    "tape": "^4.2.0"
+    "tape": "^4.2.0",
+    "through2": "^2.0.0"
   }
 }

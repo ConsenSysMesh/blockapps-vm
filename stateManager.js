@@ -1,6 +1,6 @@
 var request = require('request')
 var BaseStateManager = require('ethereumjs-vm/lib/stateManager.js')
-var CheckpointedStore = require('./checkpointed-store.js')
+var FakeMerklePatriciaTree = require('fake-merkle-patricia-tree')
 var async = require('async')
 var util = require('util')
 var ethUtil = require('ethereumjs-util')
@@ -79,7 +79,7 @@ proto._lookupStorageTrie = function(address, cb){
   // from network cache
   var storage = self._retrievedStorage[addressHex]
   if (storage) {
-    var storageTrie = fakeMerkleTreeForStorage(storage)
+    var storageTrie = new FakeMerklePatriciaTree(storage)
     cb(null, storageTrie)
     return
   }
@@ -92,23 +92,18 @@ proto._lookupStorageTrie = function(address, cb){
     var keyValues = JSON.parse(body)
     var storage = {}
     keyValues.forEach(function(keyValue){
-      storage[keyValue.key] = rlp.encode('0x'+keyValue.value).toString('hex')
+      storage[keyValue.key] = rlp.encode('0x'+keyValue.value)
     })
-    // console.log('retrieved storage:')
-    // console.log(keyValues)
-    // console.log('storage after parse + encode:')
-    // console.log(storage)
     // cache network results
     self._retrievedStorage[addressHex] = storage
     // create storage tree
-    var storageTrie = fakeMerkleTreeForStorage(storage)
+    var storageTrie = new FakeMerklePatriciaTree(storage)
     cb(null, storageTrie)
   })
 }
 
 proto.getContractCode = function(address, cb) {
   var self = this
-  var addressHex = address.toString('hex')
   self.getAccount(address, function(err, account){
     if (err) return cb(err)
     var code = self._contractCode[account.codeHash]
@@ -116,15 +111,18 @@ proto.getContractCode = function(address, cb) {
   })
 }
 
-proto.putContractCode = function(address, account, code, cb) {
+proto.putContractCode = function(address, code, cb) {
   var self = this
-  var addressHex = address.toString('hex')
+  console.log(code)
   var codeHash = ethUtil.sha3(code)
   // update code cache
   self._contractCode[codeHash] = code
   // update account
-  account.codeHash = codeHash
-  self._putAccount(address, account, cb)
+  self.getAccount(address, function(err, account){
+    if (err) return cb(err)
+    account.codeHash = codeHash
+    self._putAccount(address, account, cb)
+  })
 }
 
 proto.commitContracts = function (cb) {
@@ -139,13 +137,4 @@ proto.commitContracts = function (cb) {
       cb()
     }
   }, cb)
-}
-
-// util
-
-function fakeMerkleTreeForStorage(storage) {
-  var storageTrie = new CheckpointedStore(storage)
-  // we're using it as a merkle-patricia-tree replacement so provide fake stateRoot
-  storageTrie.root = ethUtil.pad('0x', 32)
-  return storageTrie  
 }
