@@ -44,7 +44,7 @@ proto._lookupAccount = function(address, cb) {
   var self = this
   var addressHex = address.toString('hex')
   var targetUrl = self.apiBase+'account?address='+addressHex.toString('hex')
-  request(targetUrl, function(err, res, body) {
+  request({ uri: targetUrl, withCredentials: false }, function(err, res, body) {
     if (err) return cb(err)
     // parse response into raw account
     var data
@@ -85,7 +85,7 @@ proto._lookupStorageTrie = function(address, cb){
   // from network db
   var targetUrl = self.apiBase+'storage?address='+addressHex.toString('hex')
   console.log(targetUrl)
-  request(targetUrl, function(err, res, body) {
+  request({ uri: targetUrl, withCredentials: false }, function(err, res, body) {
     if (err) return cb(err)
     // parse response into storage obj
     var keyValues = JSON.parse(body)
