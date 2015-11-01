@@ -1,3 +1,6 @@
+// polyfill for node
+require('xhr').XMLHttpRequest = require('xmlhttprequest').XMLHttpRequest
+
 var async = require('async')
 var test = require('tape')
 var Transaction = require('ethereumjs-tx')

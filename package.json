@@ -16,7 +16,8 @@
     "ethereumjs-vm": "^1.0.0",
     "fake-merkle-patricia-tree": "^1.0.1",
     "merkle-patricia-tree": "^2.0.3",
-    "request": "^2.62.0"
+    "xhr": "^2.1.0",
+    "xmlhttprequest": "^1.8.0"
   },
   "devDependencies": {
     "express": "^4.13.3",
