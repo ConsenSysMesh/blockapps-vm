@@ -11,7 +11,7 @@
   "dependencies": {
     "async": "^1.4.2",
     "ethereumjs-account": "^1.0.3",
-    "ethereumjs-tx": "^0.6.7",
+    "ethereumjs-tx": "0.6.7",
     "ethereumjs-util": "^2.0.1",
     "ethereumjs-vm": "^1.0.0",
     "fake-merkle-patricia-tree": "^1.0.1",
